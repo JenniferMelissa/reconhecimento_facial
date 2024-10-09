@@ -1,93 +1,160 @@
-#Importar bibliotecas
-#comece instalando a bilbioteca numpy
-#apos, instale o cv2 de acordo com o comando descrito pois usando ele, que voce consegue usar comandos para reconhecomento facial
-
-import numpy as np #pip install numpy
-import cv2 #pip install opencv-contrib-python
-import os 
+# importando biblioteca
+import cv2 #h
+import numpy as np   #faz o mapeamento do face de forma numerica
+import os
 
 def captura(largura, altura):
-    #Classificadores
-    classificador      = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')  #pega os arquivos importados anteriormente no projeto
-    classificador_olho = cv2.CascadeClassifier('haarcascade_eye.xml')     #pega os arquivos importados anteriormente no projeto
+    #classificadores
+    classificador = cv2.CascadeClassifier('haarcascade_frontalface_default.xml') 
+    classificador_olho = cv2.CascadeClassifier('haarcascade_eye.xml')
 
-    #abrir a camera da maquina
-    camera = cv2.VideoCapture(0) # 0 = camera principal, comeca no numero 0 e caso tenha mais cameras é so trocar o numero dentro para qual camera voce quer usar
+    #abre camera
+    camera = cv2.VideoCapture(0) #0 camera padrão do notebook
 
-    #Amostras da imagem do usuario
-    #cada usuario tera uma amostra, uma base de dados de imagem do usuario, 
-    amostra   = 1
-    #precisa informar quantar imagem precisa, geralmente sao 25 amostras, ele aprende (treina) a diferenciar uma pessoa da outra
-    n_amostas = 25
+    #amostrar da imegem do usuario
+    amostra = 1
+    n_amostras = 25 #25 imagens diferentes do usuario para que ele consiga diferenciar um usuario do outro
 
-    #Recebe o ID do usuario
+    #recebe o ID do usuario
     id = input('Digite o ID do usuário: ')
-
-    #Mensagem indicando captura de imagens 
+    
+    #msg indicando a captura das imagens
     print('Capturando as imagens...')
 
-    #loop 
+    #loop
     while True:
         conectado, imagem = camera.read()
-        imagem_cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
-        print(np.average(imagem_cinza))
-        faces_detectadas = classificador.detectMultiScale(imagem_cinza, scaleFactor=1.5, minSize=(150,150))
+        imagem_cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY) #TRANSFORMA AS IMAGENS EM CINZA
+        #define a escala de cinza
+        print(np.average(imagem_cinza)) 
+        faces_detectadas = classificador.detectMultiScale(imagem_cinza, scaleFactor=1.5, minSize=(150,150)) #minSize escala da imagem
 
-        #identificar geometria das faces
+        #identifica a geometria das faces
         for (x, y, l, a) in faces_detectadas:
-            cv2.rectangle(imagem, (x, y), (x + 1, y + a), (0, 0, 255), 2)
+            cv2.rectangle(imagem, (x,y), (x+l, y+a), (0,0,255), 2)
             regiao = imagem[y:y + a, x:x + l]
             regiao_cinza_olho = cv2.cvtColor(regiao, cv2.COLOR_BGR2GRAY)
-            olhos_detectados = classificador_olho.detectMultiScale(regiao_cinza_olho)
+            olhos_detectados = classificador_olho.detectMultiScale(regiao_cinza_olho) #retira a parte do olho
 
-        #identificar geometria dos codigos (4 pontos cardiais, leste, sul, norte, oeste)
+            #identifica a geometria dos olhos
             for (ox, oy, ol, oa) in olhos_detectados:
-                cv2.rectangle(regiao, (ox, oy), (ox + ol, oy + oa), (0, 255, 0), 2)
+                cv2.rectangle(regiao, (ox, oy), (ox+ol, oy+oa), (0, 255,0), 2)
 
-                 # salva as imagens em um arquivo do sistema ao apertar a letra c
-            if np.average(imagem_cinza) > 110 and amostra <= n_amostas:    
+            
+            if np.average(imagem_cinza) > 110 and amostra <= n_amostras:    
                 imagem_face = cv2.resize(imagem_cinza[y:y + a, x:x + l], (largura, altura))
                 cv2.imwrite(f'fotos/pessoa.{str(id)}.{str(amostra)}.jpg', imagem_face)
                 print(f'[foto] {str(amostra)} capturada com seucesso.')
                 amostra += 1
-        
-        cv2.imshow('Detectar faces', imagem)
+            
+        cv2.imshow('Detectar faces', imagem)    
         cv2.waitKey(1)
 
-        #encerra o loop caso o numero de fotos do usuario tenha chegado a 25
-        if (amostra >= n_amostas + 1):
+        if (amostra >= n_amostras + 1):
             print('Faces capturadas com sucesso.')
             break
         elif cv2.waitKey(1) == ord('q'):
-            print('Câmera encerrada.')
+            print('Camera encerrada.')
             break
-
-    #encerra a captura 
+    #encerra a captura
     camera.release()
-    cv2.destroyAllWindows() #fim da funcao
+    cv2.destroyAllWindows()
+    #fim da função
+            
+def get_imagem_com_id(): #ler as fotos e captura os dados em uma lista
+    caminhos = [os.path.join('fotos', f) for f in os.listdir('fotos')] #for list compreenching 
+    faces = []
+    ids = []
+
+    for caminho_imagem in caminhos:
+        imagem_face = cv2.cvtColor(cv2.imread(caminho_imagem), cv2.COLOR_BGR2GRAY) #pra pegar a cor cinza das imagens
+        id = int(os.path.split(caminho_imagem)[-1].split('.')[1]) #pega valor str e separa em uma lista
+        ids.append(id)
+        faces.append(imagem_face)
+
+    return np.array(ids), faces
+
+def treinamento():
+    #criando os elementos de reconhecimento necessarios 
+    eigenface = cv2.face.EigenFaceRecognizer_create() #pega as imagens em cinza para o treinamento
+    fisherface = cv2.face.FisherFaceRecognizer_create() #mapa do rosto
+    lbph = cv2.face.LBPHFaceRecognizer_create()
+
+    ids, faces = get_imagem_com_id()
+
+    #treinanda o algoritmo do programa
+    print('Treinando...')
+    eigenface.train(faces, ids)
+    eigenface.write('classificadorEigen.yml')
+    fisherface.train(faces, ids)
+    fisherface.write('classificadorFisher.yml')
+    lbph.train(faces, ids)
+    lbph.write('classificadorLBPH.yml')
+
+    #finaliza treinamento
+    print('Treinamento finalizado com sucesso!')
+
+def reconhecedor_eigenfaces(largura, altura):
+    detector_faces = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
+    reconhecedor = cv2.face.EigenFaceRecognizer_create()
+    reconhecedor.read('classificadorEigen.yml')
+    fonte = cv2.FONT_HERSHEY_COMPLEX_SMALL
+
+    camera = cv2.VideoCapture(0)
+
+    while True: 
+        conectado, imagem = camera.read()
+        imagem_cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
+        faces_detectadas = detector_faces.detectMultiScale(imagem_cinza, scaleFactor=1.5,minSize=(30,30))
+
+        for (x, y, l, a) in faces_detectadas:
+            imagem_face = cv2.resize(imagem_cinza[y:y + a, x:x + l],(largura, altura))
+            cv2.rectangle(imagem, (x, y), (x, +l, y + a), (0, 0, 225), 2)
+            id, confianca = reconhecedor.predict(imagem_face)
+            cv2.putText(imagem, str(id), (x, y +(a +30)), fonte, 2, (0, 0, 225))
+
+        cv2.imshow('Reconhecendo faces...')
+        if cv2.waitKey(1) == ord('q'):
+            break
     
-#programa principal
+    camera.release()
+    cv2.destroyAllWindows()
+
+
+
+#NOTE - PROGRAMA PRINCIPAL
 if __name__ == '__main__':
-    #definir o tamanho da camera
+    #define o tamanho da camera
     largura = 220
-    altura  = 220
+    altura = 220
 
     while True:
-    #menu
-        print('0 - Sair do programa')
-        print('1 - Captura imagem')
-
-        opcao = input('Informe opção desejada: ')
+        #menu
+        print('0 - Sair do programa!')
+        print('1 - Capturar imagem do usuário.')
+        print('2 - Treinar sistema.')
+        print('3 - Reconhecer faces.')
+        
+        opcao = input('Opção desejada: ')
 
         match opcao:
             case '0':
-                print('Programa encerrado.')
+                print('Programa encerrado!')
                 break
 
             case '1':
                 captura(largura, altura)
                 continue
+
+            case '2':
+                treinamento()
+                continue
+
+            case '3':
+                reconhecedor_eigenfaces(largura, altura)
+                continue
+
+            case _:
+                print('Opção inválida!')
+                continue
             
-
-                
-
